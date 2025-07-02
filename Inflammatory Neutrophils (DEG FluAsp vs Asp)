@@ -1,0 +1,36 @@
+# Load required libraries
+library(ggplot2)
+library(dplyr)
+library(readr)
+library(ggrepel)
+
+# Step 1: Read the CSV file
+data <- read.csv("C:/Users/USER/Desktop/Projects/Flu-Aspergilosis/scRNA seq paper - FLARE/DEG (New DEG, Dequan sent)/DEG/DEG.Flu_Asp.vs.Asp.iNeut.csv")
+
+# Step 2: Main filter — significant + large effect size
+main_filtered <- data %>%
+  filter(p < 0.05 & (log2fc > 5 | log2fc < -4.7)) %>%
+  mutate(color = ifelse(log2fc > 5, "red", "blue"))
+
+# Step 3: Forced inclusion of selected genes regardless of stats
+forced_genes <- data %>%
+  filter(gene %in% c("Tnf", "Il1a", "Ccl3", "Cd63", "Ccl4", "Ctsb")) %>%
+  mutate(color = ifelse(log2fc > 0, "red", "blue"))
+
+# Step 4: Combine and remove duplicates
+plot_data <- bind_rows(main_filtered, forced_genes) %>%
+  distinct(gene, .keep_all = TRUE)
+
+# Step 5: Create the volcano plot
+ggplot(plot_data, aes(x = log2fc, y = -log10(p), color = color)) +
+  geom_point(size = 2) +
+  geom_vline(xintercept = c(-1, 1), linetype = "dashed", color = "black") +
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "black") +
+  geom_text_repel(aes(label = gene), size = 3, max.overlaps = 100) +
+  scale_color_identity() +
+  labs(
+    title = "Volcano Plot: Flu-Asp vs Asp (iNeut) with Key Genes",
+    x = "log2(Fold Change)",
+    y = "-log10(Adjusted P-value)"
+  ) +
+  theme_minimal()
