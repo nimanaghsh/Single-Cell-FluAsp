@@ -1,0 +1,36 @@
+# Load required libraries
+library(ggplot2)
+library(dplyr)
+library(readr)
+library(ggrepel)
+
+# Step 1: Read the CSV file
+data <- read.csv("C:/Users/USER/Desktop/Projects/Flu-Aspergilosis/scRNA seq paper - FLARE/DEG (New DEG, Dequan sent)/DEG/DEG.Flu_Asp.vs.Asp.B.csv")
+
+# Step 2: Filter significant genes
+main_filtered <- data %>%
+  filter(p < 0.05 & (log2fc > 4.5 | log2fc < -4.4)) %>%
+  mutate(color = ifelse(log2fc > 4.4, "red", "blue"))
+
+# Step 3: Always include B cell markers
+forced_genes <- data %>%
+  filter(gene %in% c("Nlrc5")) %>%
+  mutate(color = ifelse(log2fc > 0, "red", "blue"))
+
+# Step 4: Combine and deduplicate
+plot_data <- bind_rows(main_filtered, forced_genes) %>%
+  distinct(gene, .keep_all = TRUE)
+
+# Step 5: Volcano plot
+ggplot(plot_data, aes(x = log2fc, y = -log10(p), color = color)) +
+  geom_point(size = 2) +
+  geom_vline(xintercept = c(-1, 1), linetype = "dashed", color = "black") +
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "black") +
+  geom_text_repel(aes(label = gene), size = 3, max.overlaps = 100) +
+  scale_color_identity() +
+  labs(
+    title = "Volcano Plot: Flu-Asp vs Asp (B Cells)",
+    x = "log2(Fold Change)",
+    y = "-log10(Adjusted P-value)"
+  ) +
+  theme_minimal()
