@@ -1,0 +1,85 @@
+# Load libraries
+library(clusterProfiler)
+library(org.Mm.eg.db)
+library(tidyverse)
+library(readr)
+
+# ---------- FUNCTION TO PROCESS EACH DATASET ----------
+process_dataset <- function(file, dataset_name) {
+  data <- read_csv(file)
+  
+  filtered <- data %>%
+    filter(!is.na(padj), padj < 0.05, !is.na(gene), !is.na(log2fc)) %>%
+    distinct(gene, .keep_all = TRUE)
+  
+  ego <- enrichGO(
+    gene          = filtered$gene,
+    OrgDb         = org.Mm.eg.db,
+    keyType       = "SYMBOL",
+    ont           = "BP",
+    pAdjustMethod = "BH",
+    qvalueCutoff  = 0.1,
+    readable      = TRUE
+  )
+  
+  # Filter only desired GO terms
+  selected_go <- ego@result %>%
+    filter(ID %in% go_ids)
+  
+  # Calculate Z-scores
+  expanded <- selected_go %>%
+    tidyr::separate_rows(geneID, sep = "/") %>%
+    left_join(filtered %>% select(gene, log2fc), by = c("geneID" = "gene")) %>%
+    group_by(ID, Description, p.adjust) %>%
+    summarise(
+      up = sum(log2fc > 0, na.rm = TRUE),
+      down = sum(log2fc < 0, na.rm = TRUE),
+      total = n(),
+      zscore = (up - down) / sqrt(total),
+      .groups = "drop"
+    ) %>%
+    mutate(dataset = dataset_name)
+  
+  return(expanded)
+}
+
+# ---------- GO IDs to Track ----------
+go_ids <- c("GO:0006909", "GO:0043312", "GO:0030593", "GO:1900454", 
+            "GO:0002679", "GO:0002757", "GO:0045730", "GO:0031349", "GO:0140645")
+
+# ---------- Run on All Datasets ----------
+sc_ineut  <- process_dataset("C:/Users/USER/Desktop/Projects/Flu-Aspergilosis/scRNA seq paper - FLARE/DEG (New DEG, Dequan sent)/DEG/DEG.Flu_Asp.vs.Asp.iNeut.csv", "SC-iNeut")
+sc_neut   <- process_dataset("C:/Users/USER/Desktop/Projects/Flu-Aspergilosis/scRNA seq paper - FLARE/DEG (New DEG, Dequan sent)/DEG/DEG.Flu_Asp.vs.Asp.Neut.csv", "SC-Neut")
+bulk      <- process_dataset("C:/Users/USER/Desktop/Projects/Flu-Aspergilosis/Keven Datasets/2nd dataset/Mixed/res_D8_FA_D8_A (1).csv", "Bulk")
+
+# ---------- Combine All ----------
+combined <- bind_rows(sc_ineut, sc_neut, bulk)
+
+# ---------- Plot ----------
+# Assuming 'combined' contains all datasets with zscore, p.adjust, Description, dataset
+
+# Add columns for plot styling
+plot_data <- combined %>%
+  mutate(
+    Direction = ifelse(zscore >= 0, "Up", "Down"),
+    log10padj = -log10(p.adjust),
+    Description = str_wrap(Description, width = 45)  # Optional: wrap for long pathway names
+  )
+
+# Plot
+ggplot(plot_data, aes(x = dataset, y = reorder(Description, zscore))) +
+  geom_point(aes(size = log10padj, color = Direction)) +
+  scale_color_manual(values = c("Up" = "red", "Down" = "blue")) +
+  scale_size_continuous(name = "-log10(Adj P-value)", range = c(1, 6)) +
+  labs(
+    title = "Neutrophil Killing-Related Pathways Across Datasets",
+    x = "Dataset",
+    y = "GO Biological Process"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.y = element_text(size = 10),
+    axis.text.x = element_text(size = 10, face = "bold"),
+    legend.position = "right"
+  )
+
