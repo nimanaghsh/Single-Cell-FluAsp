@@ -69,10 +69,16 @@ plot_data <- combined %>%
 # Plot
 ggplot(plot_data, aes(x = dataset, y = reorder(Description, zscore))) +
   geom_point(aes(size = log10padj, color = Direction)) +
-  scale_color_manual(values = c("Up" = "red", "Down" = "blue")) +
+  scale_color_manual(
+    values = c(
+      "Upregulation in Flu/AF vs AF" = "red",
+      "Downregulation in Flu/AF vs AF" = "blue"
+    ),
+    name = "Direction"
+  ) +
   scale_size_continuous(name = "-log10(Adj P-value)", range = c(1, 6)) +
   labs(
-    title = "Neutrophil Killing-Related Pathways Across Datasets",
+    title = "Neutrophil Killing-Related Pathways (Flu/AF vs AF)",
     x = "Dataset",
     y = "GO Biological Process"
   ) +
@@ -82,4 +88,3 @@ ggplot(plot_data, aes(x = dataset, y = reorder(Description, zscore))) +
     axis.text.x = element_text(size = 10, face = "bold"),
     legend.position = "right"
   )
-
