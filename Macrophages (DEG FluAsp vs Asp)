@@ -4,29 +4,39 @@ library(dplyr)
 library(readr)
 library(ggrepel)
 
-# Step 1: Read the CSV file
+# 1) Read the CSV file
 data <- read.csv("C:/Users/USER/Desktop/Projects/Flu-Aspergilosis/scRNA seq paper - FLARE/DEG (New DEG, Dequan sent)/DEG/DEG.Flu_Asp.vs.Asp.Mac.csv")
 
-# Step 2: Filter significant up/downregulated genes
-main_filtered <- data %>%
-  filter(p < 0.05 & (log2fc > 5 | log2fc < -3.5)) %>%
-  mutate(color = ifelse(log2fc > 5, "red", "blue"))
+# 2) Label gene list
+label_list <- c("Fcgr1", "Il10", "Tnfaip6", "Tfeb", "Cxcl3", "Tyk2", "Vasp")
 
-# Step 3: Add Fcgr1 manually
-forced_gene <- data %>%
-  filter(gene == "Fcgr1") %>%
-  mutate(color = ifelse(log2fc > 0, "red", "blue"))
+# 3) Determine coloring: thresholded genes OR label genes get colored
+data_colored <- data %>%
+  mutate(color = case_when(
+    log2fc > 4 ~ "red",
+    log2fc < -3.5 ~ "blue",
+    gene %in% label_list & log2fc > 0 ~ "red",
+    gene %in% label_list & log2fc <= 0 ~ "blue",
+    TRUE ~ "grey70"
+  ))
 
-# Step 4: Combine and deduplicate
-plot_data <- bind_rows(main_filtered, forced_gene) %>%
-  distinct(gene, .keep_all = TRUE)
+# 4) Extract label data
+label_genes <- data_colored %>%
+  filter(gene %in% label_list)
 
-# Step 5: Volcano plot
-ggplot(plot_data, aes(x = log2fc, y = -log10(p), color = color)) +
-  geom_point(size = 2) +
+# 5) Volcano plot
+ggplot() +
+  # All points
+  geom_point(data = data_colored,
+             aes(x = log2fc, y = -log10(p), color = color),
+             alpha = 0.8, size = 1.5) +
+  # Threshold lines
   geom_vline(xintercept = c(-1, 1), linetype = "dashed", color = "black") +
   geom_hline(yintercept = -log10(0.05), linetype = "dashed", color = "black") +
-  geom_text_repel(aes(label = gene), size = 3, max.overlaps = 100) +
+  # Labels for selected genes
+  geom_text_repel(data = label_genes,
+                  aes(x = log2fc, y = -log10(p), label = gene, color = color),
+                  size = 3, max.overlaps = 100, box.padding = 0.4, point.padding = 0.2) +
   scale_color_identity() +
   labs(
     title = "Volcano Plot: Flu-Asp vs Asp (Macrophages)",
